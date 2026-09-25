@@ -1,0 +1,11 @@
+.venv/
+.venv-*/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# Planning notes live outside this repo; never commit them here.
+docs/superpowers/
+.superpowers/
+.claude/
