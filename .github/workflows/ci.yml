@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    # Informational legs report ffmpeg-version drift without blocking a merge.
+    continue-on-error: ${{ !matrix.blocking }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "ubuntu-24.04 (ffmpeg 6.1)", os: ubuntu-24.04, blocking: true }
+          - { name: "macos-latest (brew ffmpeg)", os: macos-latest, blocking: true }
+          - { name: "ubuntu-22.04 (ffmpeg 4.4, informational)", os: ubuntu-22.04, blocking: false }
+          - { name: "ubuntu-26.04 (ffmpeg 8.0, informational)", os: ubuntu-26.04, blocking: false }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install ffmpeg
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install ffmpeg
+          else
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+      - name: ffmpeg version
+        run: ffmpeg -version | head -1
+      - name: Tests
+        run: uv run --python 3.12 pytest -q
