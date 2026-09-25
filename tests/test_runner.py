@@ -99,6 +99,13 @@ def test_one_detector_crashing_does_not_hide_the_others(tmp_path, media, monkeyp
     assert clip.status is Status.FAIL
 
 
+def test_unreadable_container_fails_even_when_frame_is_not_requested(tmp_path, media):
+    root, clips = one_clip(tmp_path, media, "trunc_moovend.mp4")
+    [clip] = check_clips(root, clips, Config(), detectors=("audio",))
+    assert clip.status is Status.FAIL
+    assert clip.detectors["frame"].findings[0].code == "frame.unreadable_container"
+
+
 def test_only_runs_the_requested_detectors(tmp_path, media):
     root, clips = one_clip(tmp_path, media, "silent.mp4")
     [clip] = check_clips(root, clips, Config(), detectors=("frame",))

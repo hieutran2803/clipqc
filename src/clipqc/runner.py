@@ -73,6 +73,9 @@ def check_clips(
             if decode_exc is not None and result.status is Status.INCONCLUSIVE:
                 result = _error(name, decode_exc)
             results[name] = result
+        if not probe.readable and "frame" not in results:
+            # A file that cannot be opened is a delivery defect whatever --only asked for.
+            results["frame"] = judge_frame(probe, None, cfg)
         rows.append((rel, probe, results))
 
     batch = judge_batch({rel: probe for rel, probe, _ in rows if probe is not None}) \
