@@ -32,7 +32,7 @@ WARN         frozen.mp4
 FAIL         silent.mp4
   fail  -              audio.silent                audio is silent (sample peak -inf dBFS)
 FAIL         trunc.mp4
-  fail  2.37s          frame.truncated             file is truncated at 2.37s: video has 74/120 packets; audio has 112/189 packets; media ends at 2.53s but the header says 4.00s; box 'mdat' at byte 5770 claims 101943 bytes, file has 58857
+  fail  2.37s          frame.truncated             file is truncated at 2.37s: media lasts 2.53s but the header says 4.00s; box 'mdat' at byte 5770 claims 101943 bytes, file has 58857
 
 5 clip(s): 3 fail, 1 pass, 1 warn
 ```
