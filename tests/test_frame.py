@@ -81,6 +81,23 @@ def test_duration_floor(end, expected):
     assert codes(judge_frame(p, decode(), CFG)) == expected
 
 
+def test_duration_is_measured_from_the_first_packet_not_from_zero():
+    # A -copyts remux can start at 1.445 s; the clip is still only 0.64 s long.
+    p = probe(format_duration=0.64,
+              video=video(packet_start=1.445, packet_end=2.085),
+              audio=audio(packet_start=1.445, packet_end=2.085))
+    assert codes(judge_frame(p, decode(), CFG)) == ["frame.duration"]
+
+
+def test_start_offset_does_not_hide_truncation():
+    p = probe(format_duration=4.0,
+              video=video(packet_start=1.445, packet_end=4.9),
+              audio=audio(packet_start=1.445, packet_end=4.9))
+    result = judge_frame(p, decode(), CFG)
+    assert "frame.truncated" in codes(result)
+    assert result.coverage == pytest.approx((4.9 - 1.445) / 4.0)
+
+
 def test_duration_ceiling_from_config():
     result = judge_frame(probe(), decode(), Config(duration_max_s=8.0))
     assert codes(result) == ["frame.duration"]

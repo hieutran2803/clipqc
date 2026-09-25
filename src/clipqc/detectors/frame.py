@@ -18,6 +18,14 @@ def _stream_ends(probe: ProbeObs) -> list[float]:
     return [s.packet_end for s in (probe.video, probe.audio) if s and s.packet_end is not None]
 
 
+def _media_start(probe: ProbeObs) -> float:
+    """Earliest packet time. Usually ~0, but a -copyts remux can start seconds later.
+    Negative starts (AAC encoder priming) count as 0."""
+    starts = [s.packet_start for s in (probe.video, probe.audio)
+              if s and s.packet_start is not None]
+    return max(0.0, min(starts)) if starts else 0.0
+
+
 def _truncation(probe: ProbeObs) -> Finding | None:
     # Packet count vs nb_frames is NOT a signal on its own: PCM audio in MOV reports samples
     # as frames, and stream-copy trims drop packets before the edit list on healthy files.
@@ -26,8 +34,9 @@ def _truncation(probe: ProbeObs) -> Finding | None:
     header = probe.format_duration
     if ends and header:
         fps = probe.video.fps if probe.video and probe.video.fps else 30.0
-        if max(ends) < header - max(TRUNCATION_MIN_GAP_S, 2.0 / fps):
-            reasons.append(f"media ends at {max(ends):.2f}s but the header says {header:.2f}s")
+        span = max(ends) - _media_start(probe)
+        if span < header - max(TRUNCATION_MIN_GAP_S, 2.0 / fps):
+            reasons.append(f"media lasts {span:.2f}s but the header says {header:.2f}s")
     if probe.boxes.overrun:
         reasons.append(probe.boxes.overrun)
     if not reasons:
@@ -65,7 +74,7 @@ def judge_frame(probe: ProbeObs, decode: DecodeObs | None, cfg: Config) -> Detec
         findings.append(truncated)
 
     ends = _stream_ends(probe)
-    length = max(ends) if ends else (probe.format_duration or 0.0)
+    length = max(ends) - _media_start(probe) if ends else (probe.format_duration or 0.0)
     if length < cfg.duration_min_s:
         findings.append(Finding(
             "frame.duration", Severity.FAIL,
@@ -102,7 +111,8 @@ def judge_frame(probe: ProbeObs, decode: DecodeObs | None, cfg: Config) -> Detec
 
     coverage = 1.0
     if truncated and truncated.t_start is not None and probe.format_duration:
-        coverage = max(0.0, min(1.0, truncated.t_start / probe.format_duration))
+        seen = truncated.t_start - _media_start(probe)
+        coverage = max(0.0, min(1.0, seen / probe.format_duration))
 
     if decode is None:
         status = Status.FAIL if status_from_findings(findings) is Status.FAIL \
