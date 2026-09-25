@@ -30,8 +30,13 @@ def discover(root: Path) -> list[Path]:
     )
 
 
-def _error(detector: str, exc: BaseException) -> DetectorResult:
-    return DetectorResult(detector, Status.ERROR, reason=f"{type(exc).__name__}: {exc}")
+def _error(detector: str, exc: BaseException, path: Path, rel: str) -> DetectorResult:
+    """Tool failure. The reason names the clip by its relative path, never the absolute one."""
+    reason = f"{type(exc).__name__}: {exc}"
+    for full in sorted({str(path), str(path.absolute()), str(path.resolve())}, key=len,
+                       reverse=True):
+        reason = reason.replace(full, rel)
+    return DetectorResult(detector, Status.ERROR, reason=reason)
 
 
 def check_clips(
@@ -55,7 +60,7 @@ def check_clips(
         try:
             probe = probe_fn(path)
         except Exception as exc:  # the tool itself failed, not the clip
-            rows.append((rel, None, {d: _error(d, exc) for d in detectors}))
+            rows.append((rel, None, {d: _error(d, exc, path, rel) for d in detectors}))
             continue
         decode: DecodeObs | None = None
         decode_exc: BaseException | None = None
@@ -69,9 +74,9 @@ def check_clips(
             try:
                 result = JUDGES[name](probe, decode, cfg)
             except Exception as exc:
-                result = _error(name, exc)
+                result = _error(name, exc, path, rel)
             if decode_exc is not None and result.status is Status.INCONCLUSIVE:
-                result = _error(name, decode_exc)
+                result = _error(name, decode_exc, path, rel)
             results[name] = result
         if not probe.readable and "frame" not in results:
             # A file that cannot be opened is a delivery defect whatever --only asked for.

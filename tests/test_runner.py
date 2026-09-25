@@ -66,6 +66,18 @@ def test_probe_crash_makes_every_detector_error(tmp_path, media):
     assert "ffprobe vanished" in clip.detectors["frame"].reason
 
 
+def test_error_reasons_never_carry_absolute_paths(tmp_path, media):
+    root, clips = one_clip(tmp_path, media)
+
+    def locked(path):
+        raise PermissionError(f"[Errno 13] Permission denied: '{path}'")
+
+    [clip] = check_clips(root, clips, Config(), probe_fn=locked)
+    reason = clip.detectors["frame"].reason
+    assert str(tmp_path) not in reason
+    assert "clean.mp4" in reason
+
+
 def test_decode_crash_errors_decode_dependent_detectors(tmp_path, media, monkeypatch):
     root, clips = one_clip(tmp_path, media)
 
