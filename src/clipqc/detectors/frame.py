@@ -19,10 +19,9 @@ def _stream_ends(probe: ProbeObs) -> list[float]:
 
 
 def _truncation(probe: ProbeObs) -> Finding | None:
+    # Packet count vs nb_frames is NOT a signal on its own: PCM audio in MOV reports samples
+    # as frames, and stream-copy trims drop packets before the edit list on healthy files.
     reasons = []
-    for s in (probe.video, probe.audio):
-        if s and s.nb_frames and s.nb_read_packets is not None and s.nb_read_packets < s.nb_frames:
-            reasons.append(f"{s.kind} has {s.nb_read_packets}/{s.nb_frames} packets")
     ends = _stream_ends(probe)
     header = probe.format_duration
     if ends and header:

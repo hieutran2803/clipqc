@@ -66,6 +66,11 @@ def main() -> None:
        m("landscape.mp4"))
 
     ff("-i", m("clean.mp4"), "-c", "copy", *CLEAN_META, m("clean.mkv"))
+    # Healthy files whose packet counts fall short of nb_frames: PCM audio in MOV counts
+    # samples as frames, and a stream-copy trim drops audio packets before the edit list.
+    ff("-i", m("clean.mp4"), "-c:v", "copy", "-c:a", "pcm_s16le", *CLEAN_META, *FASTSTART,
+       m("pcm.mov"))
+    ff("-ss", "1.5", "-i", m("clean.mp4"), "-c", "copy", *CLEAN_META, *FASTSTART, m("sscopy.mp4"))
     ff("-i", m("clean.mp4"), "-vn", "-c:a", "copy", *CLEAN_META, *FASTSTART, m("novideo.mp4"))
     with tempfile.TemporaryDirectory() as tmp:
         cover = str(Path(tmp) / "cover.png")
@@ -76,6 +81,8 @@ def main() -> None:
 
     data = (MEDIA / "clean.mp4").read_bytes()
     (MEDIA / "trunc.mp4").write_bytes(data[: len(data) * 6 // 10])
+    mkv = (MEDIA / "clean.mkv").read_bytes()
+    (MEDIA / "trunc.mkv").write_bytes(mkv[: len(mkv) * 6 // 10])
     moov_end = (MEDIA / "moovend.mp4").read_bytes()
     (MEDIA / "trunc_moovend.mp4").write_bytes(moov_end[: len(moov_end) * 6 // 10])
     corrupt = bytearray(data)

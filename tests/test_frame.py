@@ -33,7 +33,7 @@ def test_missing_video_stream_fails():
     assert codes(result) == ["frame.no_video"]
 
 
-def test_truncated_by_packet_count_reports_the_break_and_coverage():
+def test_truncated_file_reports_the_break_and_coverage():
     p = probe(video=video(nb_read_packets=150, packet_end=5.0),
               audio=audio(nb_read_packets=230, packet_end=4.9))
     result = judge_frame(p, decode(), CFG)
@@ -42,6 +42,13 @@ def test_truncated_by_packet_count_reports_the_break_and_coverage():
     assert finding.code == "frame.truncated"
     assert finding.t_start == pytest.approx(4.9)
     assert result.coverage == pytest.approx(0.49)
+
+
+def test_packet_count_short_of_nb_frames_alone_is_not_truncation():
+    # PCM audio in MOV reports samples as nb_frames; stream-copy trims drop leading packets.
+    p = probe(audio=audio(codec="pcm_s16le", nb_frames=480000, nb_read_packets=469),
+              video=video(nb_frames=300, nb_read_packets=255))
+    assert judge_frame(p, decode(), CFG).status is Status.PASS
 
 
 def test_truncated_when_media_ends_well_before_the_header_duration():
@@ -56,7 +63,7 @@ def test_truncated_when_a_box_overruns_the_file():
 
 
 def test_truncation_suppresses_the_decoder_errors_and_av_gap_it_causes():
-    p = probe(video=video(nb_read_packets=150, packet_end=5.0))
+    p = probe(video=video(packet_end=5.0), audio=audio(packet_end=4.2))
     d = decode(decoder_error_count=3, decoder_errors=("[h264] Invalid NAL unit size",))
     assert codes(judge_frame(p, d, CFG)) == ["frame.truncated"]
 
@@ -135,5 +142,6 @@ def test_missing_decode_pass_is_inconclusive_unless_something_already_failed():
     ok = judge_frame(probe(), None, CFG)
     assert ok.status is Status.INCONCLUSIVE
     assert ok.reason
-    truncated = judge_frame(probe(video=video(nb_read_packets=1, packet_end=0.1)), None, CFG)
+    overrun = BoxWalk(True, ("ftyp", "moov", "mdat"), "box 'mdat' claims 9 bytes")
+    truncated = judge_frame(probe(boxes=overrun), None, CFG)
     assert truncated.status is Status.FAIL

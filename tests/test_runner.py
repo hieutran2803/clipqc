@@ -19,9 +19,12 @@ EXPECTED = {
     "landscape.mp4": Status.WARN,
     "moovend.mp4": Status.WARN,
     "noaudio.mp4": Status.FAIL,
+    "pcm.mov": Status.PASS,
+    "sscopy.mp4": Status.PASS,
     "novideo.mp4": Status.FAIL,
     "silent.mp4": Status.FAIL,
     "tiny.mp4": Status.FAIL,
+    "trunc.mkv": Status.FAIL,
     "trunc.mp4": Status.FAIL,
     "trunc_moovend.mp4": Status.FAIL,
 }
