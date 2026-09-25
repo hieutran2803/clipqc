@@ -56,6 +56,27 @@ def test_pairs_freeze_events_and_leaves_an_eof_freeze_open():
     assert obs.freeze == ((1.0, 4.033333), (9.5, None))
 
 
+def test_parses_filter_lines_logged_under_bare_filter_names():
+    # ffmpeg 6.1 and 8.0 log these under "blackdetect"/"freezedetect", not "Parsed_..._N".
+    log = (
+        "[blackdetect @ 0x1] [info] black_start:1 black_end:2.03333 black_duration:1.03333\n"
+        "[freezedetect @ 0x2] [info] lavfi.freezedetect.freeze_start: 1\n"
+        "[freezedetect @ 0x2] [info] lavfi.freezedetect.freeze_duration: 2.53333\n"
+        "[freezedetect @ 0x2] [info] lavfi.freezedetect.freeze_end: 3.53333\n"
+        "[ebur128 @ 0x3] [info] Summary:\n"
+        "    I:         -14.3 LUFS\n"
+        "[astats @ 0x4] [info] Overall\n"
+        "[astats @ 0x4] [info] Peak level dB: -11.3\n"
+        "[ebur128 @ 0x3] [error] Undefined constant or missing '(' in 'quiet'\n"
+    )
+    obs = parse_decode_log(log, 0, audio_decoded=True)
+    assert obs.black == ((1.0, 2.03333),)
+    assert obs.freeze == ((1.0, 3.53333),)
+    assert obs.loudness_summaries == 1 and obs.integrated_lufs == -14.3
+    assert obs.astats_blocks == 1 and obs.sample_peak_dbfs == -11.3
+    assert obs.decoder_error_count == 0
+
+
 def test_counts_decoder_errors_but_not_wrappers_demuxers_or_swscaler():
     log = (
         "[h264 @ 0x1] [error] Invalid NAL unit size (1182 > 165).\n"
@@ -142,8 +163,9 @@ def test_corrupt_payload_produces_decoder_errors(media):
 
 
 def test_mid_file_colorspace_change_keeps_one_audio_summary(media):
+    # ffmpeg >= 8.0 also logs "Reconfiguring filter graph" (-> params_changed); 6.1 re-initialises
+    # silently. The invariant that must hold everywhere is a single audio summary.
     obs = run_decode(media / "mixcs.mp4", run_probe(media / "mixcs.mp4"))
-    assert len(obs.params_changed) >= 1
     assert obs.loudness_summaries == 1
     assert obs.astats_blocks == 1
 

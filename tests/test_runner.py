@@ -17,7 +17,6 @@ EXPECTED = {
     "cover.mp4": Status.PASS,
     "frozen.mp4": Status.WARN,
     "landscape.mp4": Status.WARN,
-    "mixcs.mp4": Status.WARN,
     "moovend.mp4": Status.WARN,
     "noaudio.mp4": Status.FAIL,
     "novideo.mp4": Status.FAIL,
@@ -29,8 +28,14 @@ EXPECTED = {
 
 
 def test_every_fixture_gets_its_expected_verdict(media):
-    results = check_clips(media, discover(media), Config())
-    assert {r.path: r.status for r in results} == EXPECTED
+    results = {r.path: r for r in check_clips(media, discover(media), Config())}
+    # mixcs.mp4 is WARN (frame.params_changed) on ffmpeg >= 8.0, PASS on 6.1, which does not
+    # log the mid-file reconfiguration.
+    mixcs = results.pop("mixcs.mp4")
+    assert mixcs.status in (Status.PASS, Status.WARN)
+    assert all(f.code == "frame.params_changed"
+               for d in mixcs.detectors.values() for f in d.findings)
+    assert {path: r.status for path, r in results.items()} == EXPECTED
 
 
 def test_discover_is_recursive_sorted_and_skips_hidden_and_non_video(tmp_path):

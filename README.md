@@ -89,8 +89,9 @@ Unknown keys are an error, so a typo never silently falls back to a default.
 
 - On-screen text (typos, cut-off captions) is not checked yet; it is next.
 - Look-alike character drift, hands and motion are not judged.
-- Tested on ffmpeg 6.1 (Ubuntu 24.04) and the current Homebrew ffmpeg; 4.4 and
-  8.0 run as informational CI legs.
+- Tested with ffmpeg 6.1, 8.0, 8.1 and 9.0. ffmpeg 4.x is not supported yet (its
+  CI leg is informational). `frame.params_changed` needs ffmpeg 8.0 or later,
+  because 6.1 does not log a mid-file format change.
 
 ## Development
 

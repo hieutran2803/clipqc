@@ -26,7 +26,8 @@ _LINE = re.compile(
     r"\[(?P<level>trace|debug|verbose|info|warning|error|fatal|panic)\] (?P<msg>.*)$"
 )
 _DECODER_CTX = re.compile(r"[a-z0-9_]+")
-_NOT_DECODERS = {"swscaler", "swresample"}
+_OUR_FILTERS = ("scale", "blackdetect", "freezedetect", "ebur128", "aformat", "astats")
+_NOT_DECODERS = {"swscaler", "swresample", *_OUR_FILTERS}
 _BLACK = re.compile(r"black_start:\s*(-?[\d.]+)\s+black_end:\s*(-?[\d.]+)")
 _FREEZE_START = re.compile(r"freeze_start:\s*(-?[\d.]+)")
 _FREEZE_END = re.compile(r"freeze_end:\s*(-?[\d.]+)")
@@ -52,6 +53,11 @@ class DecodeObs:
     sample_peak_dbfs: float | None = None
     flat_factor: float | None = None
     peak_count: float | None = None
+
+
+def _is_filter(ctx: str, name: str) -> bool:
+    """ffmpeg >= 8.1 logs filters as "Parsed_<name>_<n>"; 6.1 and 8.0 log plain "<name>"."""
+    return ctx == name or ctx.startswith(f"Parsed_{name}_")
 
 
 def _num(text: str) -> float | None:
@@ -84,7 +90,7 @@ def parse_decode_log(text: str, returncode: int, audio_decoded: bool) -> DecodeO
     for raw in text.splitlines():
         m = _LINE.match(raw)
         ctx, level, body = (m["ctx"], m["level"], m["msg"]) if m else ("", "", raw)
-        if m and not ctx.startswith("Parsed_ebur128"):
+        if m and not _is_filter(ctx, "ebur128"):
             in_summary = False
 
         if level in ("error", "fatal", "panic") and _DECODER_CTX.fullmatch(ctx) \
@@ -95,24 +101,24 @@ def parse_decode_log(text: str, returncode: int, audio_decoded: bool) -> DecodeO
                 errors.append(msg)
         elif "Reconfiguring filter graph" in body:
             changed.append(body)
-        elif ctx.startswith("Parsed_blackdetect") and (b := _BLACK.search(body)):
+        elif _is_filter(ctx, "blackdetect") and (b := _BLACK.search(body)):
             black.append((float(b[1]), float(b[2])))
-        elif ctx.startswith("Parsed_freezedetect") and (s := _FREEZE_START.search(body)):
+        elif _is_filter(ctx, "freezedetect") and (s := _FREEZE_START.search(body)):
             freeze.append([float(s[1]), None])
-        elif ctx.startswith("Parsed_freezedetect") and (e := _FREEZE_END.search(body)):
+        elif _is_filter(ctx, "freezedetect") and (e := _FREEZE_END.search(body)):
             open_ = [f for f in freeze if f[1] is None]
             if open_:
                 open_[-1][1] = float(e[1])
-        elif ctx.startswith("Parsed_ebur128") and body.strip() == "Summary:":
+        elif _is_filter(ctx, "ebur128") and body.strip() == "Summary:":
             summaries += 1
             in_summary = True
         elif in_summary and (i := _I.match(body)):
             lufs = _num(i[1])
         elif in_summary and (t := _TP.match(body)):
             tp = _num(t[1])
-        elif ctx.startswith("Parsed_astats") and body.strip() == "Overall":
+        elif _is_filter(ctx, "astats") and body.strip() == "Overall":
             blocks += 1
-        elif ctx.startswith("Parsed_astats") and (a := _ASTAT.match(body.strip())):
+        elif _is_filter(ctx, "astats") and (a := _ASTAT.match(body.strip())):
             value = _num(a[2])
             if a[1] == "Peak level dB":
                 peak = value
